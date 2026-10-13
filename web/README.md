@@ -27,9 +27,9 @@ The map, mapped walking routes, workout log, and weekly summaries work without a
 - Pan/zoom an OpenStreetMap map and tap 2–25 shaping points.
 - Follow mapped pedestrian paths automatically between shaping points, using FOSSGIS / OSRM or optional Mapbox. Manual straight-line trace remains available explicitly.
 - Save, view, and delete named routes in browser storage.
-- Start a run in a dedicated navigation map with a next-turn banner, live position, recentering, off-route guidance, and large pause/finish controls. Preview the screen without requesting GPS.
+- Start a run in a dedicated navigation map with a next-turn banner, live position, recentering, off-route guidance, and large pause/finish controls. Follow mode zooms to level 18, rotates the upcoming path upward, and colors remaining route blue and completed route green. Preview the screen without requesting GPS.
 - Record GPS runs while the app stays visible; pause, resume, finish, and recover an unfinished run after reload.
-- Show GPS accuracy, cumulative distance, average pace, and a visual off-route warning after three accepted fixes more than 60 m from the planned line.
+- Show GPS accuracy, cumulative distance, average pace, and a visual off-route warning after three accepted fixes beyond a GPS-accuracy-adjusted 35–60 m threshold. The warning clears after two fixes within 20 m.
 - Manually log workouts with distance, duration, date, and optional elevation gain.
 - Review Monday-based weekly mileage, run counts, weighted average pace, elevation totals when available, and prior-week mileage comparisons.
 - Export routes and workouts as a JSON backup.
@@ -40,7 +40,7 @@ The map, mapped walking routes, workout log, and weekly summaries work without a
 - Routes and workouts are local to the browser and device. They do not sync and can be lost if browser data is cleared. Export periodically. Backup import is not implemented yet.
 - Trace mode joins points directly; it does not snap to paths. Place points along the actual route. Walking routing needs internet and depends on mapped connectivity and access tags. It can include roads, and cannot guarantee an exact or exclusively trail route. Waypoints snap within 100 m; missing paths or service failures produce an error rather than a straight-line fallback.
 - Maps need internet. The service worker caches the local shell, not third-party map tiles, Leaflet, or map routes. Offline mapping is not implemented.
-- Route elevation preview, automatically measured run elevation, and live spoken turn prompts are not implemented. Walking directions appear in the live navigation view; turn prompts and off-route alerts are visual while active. Recalculate older saved routes to add maneuver locations.
+- Route elevation preview, automatically measured run elevation, and live spoken turn prompts are not implemented. Walking directions appear in the live navigation view; turn prompts are visual. Off-path alerts use a red banner and a short repeating tone when browser audio is available; vibration is optional where supported. The sound toggle is available in the run view. Recalculate older saved routes to add maneuver locations.
 - GPS filtering skips poor accuracy (>40 m), large time gaps (>30 seconds), and implausible jumps (>10 m/s). Outdoor phone testing is still required; pace is average pace, not instantaneous pace.
 
 ## Local development
@@ -60,11 +60,11 @@ npm run check
 npm test
 ```
 
-The fourteen Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
+The seventeen Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
 
 ## Technical decisions
 
-The active web app uses plain JavaScript modules, HTML/CSS, and Leaflet. It needs no package installation or framework build. OpenStreetMap supplies map tiles; FOSSGIS / OSRM foot routing is the default; Mapbox walking directions are an optional integration.
+The active web app uses plain JavaScript modules, HTML/CSS, and Leaflet. A pinned MIT-licensed map-rotation plugin is bundled in web/dist/vendor/ with its license notice. It needs no package installation or framework build. OpenStreetMap supplies map tiles; FOSSGIS / OSRM foot routing is the default; Mapbox walking directions are an optional integration.
 
 - **Local-first storage:** routes and workouts stay in the visitor's browser. Writes update the UI only after storage succeeds, and JSON export provides a backup.
 - **Geospatial calculations:** haversine distance measures mileage; point-to-segment distance compares GPS fixes with the planned route. Repeated off-route fixes help reduce false warnings.

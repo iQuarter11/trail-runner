@@ -19,12 +19,13 @@
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
-    <link rel="stylesheet" href="style.css?v=run-view-5" />
+    <link rel="stylesheet" href="style.css?v=run-follow-6" />
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       defer
     ></script>
-    <script type="module" src="app.js?v=run-view-5"></script>
+    <script src="vendor/leaflet-rotate.js" defer></script>
+    <script type="module" src="app.js?v=run-follow-6"></script>
   </head>
   <body>
     <header>
@@ -229,7 +230,7 @@
         <div id="workout-list" class="cards"></div>
       </section>
       <footer>
-        <span>TRAIL RUNNER · v5</span>
+        <span>TRAIL RUNNER · v6</span>
         <p>
           Your routes and workouts stay in this browser. Export a backup before
           clearing browser data.
@@ -241,6 +242,8 @@
       <div class="nav-top">
         <button id="exit-navigation" class="ghost">← Planner</button
         ><span id="nav-name">Your run</span
+        ><button id="nav-sound" class="ghost" aria-pressed="true">
+          Sound on</button
         ><span class="nav-badge" id="nav-state">PREVIEW</span>
       </div>
       <div class="turn-banner" aria-live="polite">
@@ -253,6 +256,21 @@
       <div id="navigation-map" aria-label="Live running map"></div>
       <button id="nav-recenter" class="nav-recenter">◎ Follow me</button>
       <div class="nav-bottom">
+        <div class="route-legend">
+          <span class="remaining-key">● Ahead</span
+          ><span class="completed-key">● Completed</span>
+        </div>
+        <div id="preview-progress-control">
+          <label for="preview-progress">Preview route progress (not GPS)</label
+          ><input
+            id="preview-progress"
+            type="range"
+            min="0"
+            max="100"
+            value="0"
+            step="1"
+          />
+        </div>
         <p id="nav-gps" role="status">
           Allow location when you start recording.
         </p>

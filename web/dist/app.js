@@ -2,11 +2,16 @@ import {
   routeProgress,
   nextDirection,
   directionSymbol,
-} from "./navigation.js?v=run-view-5";
+  splitRoute,
+  routeHeading,
+  lookAhead,
+  bearing,
+  offPathState,
+} from "./navigation.js?v=run-follow-6";
 import {
   locatePosition,
   locationErrorMessage,
-} from "./location.js?v=run-view-5";
+} from "./location.js?v=run-follow-6";
 import {
   miles,
   distance,
@@ -18,7 +23,7 @@ import {
   loadData,
   saveData,
   walkingRoute,
-} from "./core.js?v=run-view-5";
+} from "./core.js?v=run-follow-6";
 const $ = (id) => document.getElementById(id);
 let data = { routes: [], workouts: [] },
   storageOK = true,
@@ -596,18 +601,58 @@ function clearWatch() {
 let navigationMap,
   navigationRoute,
   navigationTrack,
+  navigationCompleted,
+  previewProgress = 0,
+  soundEnabled = true,
+  alertAudio,
   navigationPosition,
   displayedRoute,
   previewRoute,
   followPosition = true;
+function primeAlertAudio() {
+  if (!soundEnabled) return;
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (Audio) {
+      alertAudio ||= new Audio();
+      alertAudio.resume().catch(() => {});
+    }
+  } catch {}
+}
+function offPathSound() {
+  if (!soundEnabled || !alertAudio || alertAudio.state !== "running") return;
+  const gain = alertAudio.createGain();
+  gain.connect(alertAudio.destination);
+  const now = alertAudio.currentTime;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+  gain.gain.setValueAtTime(0.12, now + 0.3);
+  gain.gain.linearRampToValueAtTime(0, now + 0.4);
+  const oscillator = alertAudio.createOscillator();
+  oscillator.frequency.value = 660;
+  oscillator.connect(gain);
+  oscillator.start(now);
+  oscillator.stop(now + 0.45);
+}
 function openNavigation(route) {
+  previewProgress = 0;
+  $("preview-progress").value = "0";
   previewRoute = route;
   $("navigation").hidden = false;
   document.querySelector("main").inert = true;
   document.querySelector("header").inert = true;
   $("exit-navigation").focus();
   if (!navigationMap && window.L) {
-    navigationMap = L.map("navigation-map", { zoomControl: true });
+    navigationMap = L.map("navigation-map", {
+      zoomControl: true,
+      zoomAnimation: false,
+      markerZoomAnimation: false,
+      rotate: true,
+      rotateControl: false,
+      touchRotate: false,
+      dragRotate: false,
+      shiftKeyRotate: false,
+    });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution:
@@ -615,6 +660,7 @@ function openNavigation(route) {
     }).addTo(navigationMap);
     navigationMap.on("dragstart", () => {
       followPosition = false;
+      navigationMap.stopHeadingUp?.();
       $("nav-recenter").textContent = "◎ Follow me";
     });
   }
@@ -623,21 +669,29 @@ function openNavigation(route) {
     if (navigationMap && displayedRoute !== route) {
       navigationRoute?.remove();
       navigationTrack?.remove();
+      navigationCompleted?.remove();
       navigationPosition?.remove();
       navigationPosition = null;
       navigationRoute = L.polyline(
         route.points.map((p) => [p[1], p[0]]),
-        { color: "#17694b", weight: 7 },
+        { color: "#347bb6", weight: 7 },
       ).addTo(navigationMap);
-      navigationTrack = L.polyline([], { color: "#d37d3e", weight: 4 }).addTo(
-        navigationMap,
-      );
+      navigationCompleted = L.polyline([], {
+        color: "#17694b",
+        weight: 7,
+      }).addTo(navigationMap);
+      navigationTrack = L.polyline([], {
+        color: "#d37d3e",
+        weight: 3,
+        opacity: 0,
+      }).addTo(navigationMap);
       navigationMap.fitBounds(navigationRoute.getBounds(), {
         padding: [35, 35],
       });
       displayedRoute = route;
     }
     renderNavigation();
+    if (run?.position) updateNavigationPosition(run.position);
   });
 }
 function renderNavigation() {
@@ -654,14 +708,30 @@ function renderNavigation() {
   $("nav-pause").hidden = !run;
   $("nav-finish").hidden = !run;
   $("nav-pause").textContent = run?.paused ? "Resume" : "Pause";
+  $("preview-progress-control").hidden = !!run;
+  $("navigation").classList.toggle("off-path", !!run?.alertState?.active);
+  $("navigation").classList.toggle("route-complete", !!run?.routeCompleted);
+  const shownProgress = run?.progress || previewProgress;
+  const split = splitRoute(
+    route.points,
+    run?.routeCompleted ? Infinity : shownProgress,
+  );
+  navigationRoute?.setLatLngs(split.remaining.map((p) => [p[1], p[0]]));
+  navigationCompleted?.setLatLngs(split.completed.map((p) => [p[1], p[0]]));
+  if (navigationTrack)
+    navigationTrack.setStyle({ opacity: run?.alertState?.active ? 0.8 : 0 });
   const step = nextDirection(
     route,
-    run?.progress || 0,
+    shownProgress,
     run?.geometryLength || route.distance,
   );
   $("nav-arrow").textContent = run?.offCount >= 3 ? "!" : directionSymbol(step);
   $("nav-instruction").textContent =
-    run?.offCount >= 3 ? "Return to your planned route" : step.instruction;
+    run?.offCount >= 3
+      ? "Return to your planned route"
+      : run?.routeCompleted
+        ? "Route complete!"
+        : step.instruction;
   $("nav-turn-distance").textContent = !run?.position
     ? "Route preview · waiting for GPS"
     : step.remaining === null
@@ -696,11 +766,37 @@ function updateNavigationPosition(position) {
       fillOpacity: 1,
     }).addTo(navigationMap);
   else navigationPosition.setLatLng(point);
-  if (followPosition) navigationMap.setView(point, 17, { animate: true });
+  if (followPosition) {
+    const route = run?.route || previewRoute;
+    const progress = run?.progress || previewProgress;
+    const heading =
+      run?.alertState?.active && Number.isFinite(run?.heading)
+        ? run.heading
+        : routeHeading(route.points, progress);
+    navigationMap.setBearing?.(-heading);
+    const ahead = lookAhead(position, heading, 25);
+    navigationMap.setView([ahead[1], ahead[0]], 18, { animate: false });
+  }
 }
 $("preview-navigation").onclick = () => {
   const route = currentRoute();
   if (route) openNavigation(run?.route || route);
+};
+$("nav-sound").onclick = () => {
+  soundEnabled = !soundEnabled;
+  $("nav-sound").textContent = soundEnabled ? "Sound on" : "Sound off";
+  $("nav-sound").setAttribute("aria-pressed", String(soundEnabled));
+  primeAlertAudio();
+};
+$("preview-progress").oninput = (event) => {
+  if (run || !previewRoute) return;
+  const length = pathDistance(previewRoute.points);
+  previewProgress = (length * Number(event.target.value)) / 100;
+  renderNavigation();
+  followPosition = true;
+  updateNavigationPosition(
+    splitRoute(previewRoute.points, previewProgress).point,
+  );
 };
 $("nav-start").onclick = () => $("start-run").click();
 $("nav-pause").onclick = () => $("pause-run").click();
@@ -715,6 +811,10 @@ $("exit-navigation").onclick = () => {
 $("nav-recenter").onclick = () => {
   followPosition = true;
   if (run?.position) updateNavigationPosition(run.position);
+  else if (!run && previewRoute)
+    updateNavigationPosition(
+      splitRoute(previewRoute.points, previewProgress).point,
+    );
   else
     status(
       "Waiting for a usable GPS fix. Allow location access to follow your position.",
@@ -738,17 +838,28 @@ function watchRun() {
           segment = distance(run.last.point, p);
         if (dt <= 0 || dt > 30 || segment / dt > 10) {
           run.last = { point: p, stamp };
+          run.distanceAnchor = p;
           $("run-guidance").textContent =
             "GPS gap or jump detected; distance across this gap was skipped.";
           return;
         }
-        if (segment < 3) return;
-        run.distance += segment;
+      }
+      if (!run.distanceAnchor) run.distanceAnchor = p;
+      const recordedSegment = distance(run.distanceAnchor, p);
+      if (recordedSegment >= 3) {
+        run.distance += recordedSegment;
+        run.distanceAnchor = p;
       }
       run.last = { point: p, stamp };
+      run.heading =
+        Number.isFinite(coords.heading) && coords.speed > 0.8
+          ? coords.heading
+          : run.position
+            ? bearing(run.position, p)
+            : null;
       run.position = p;
       const matched = routeProgress(p, run.route.points, run.progress || 0);
-      run.progress = matched.progress;
+      if (matched.away <= 35) run.progress = matched.progress;
       run.geometryLength = matched.length;
       updateNavigationPosition(p);
       run.points.push(p);
@@ -768,13 +879,27 @@ function watchRun() {
         }).addTo(map);
       }
       const away = offRoute(p, run.route.points);
-      run.offCount = away > 60 ? (run.offCount || 0) + 1 : 0;
+      const previouslyOff = !!run.alertState?.active;
+      run.alertState = offPathState(run.alertState, away, coords.accuracy);
+      run.offCount = run.alertState.active ? 3 : 0;
+      if (
+        !run.alertState.active &&
+        run.geometryLength > 30 &&
+        run.progress >= run.geometryLength - 12 &&
+        away < 25
+      )
+        run.routeCompleted = true;
       $("run-guidance").textContent =
         run.offCount >= 3
           ? `Off route · about ${Math.round(away)} m from your planned line.`
           : `GPS recording · ±${Math.round(coords.accuracy)} m accuracy`;
-      if (run.offCount >= 3 && Date.now() - (run.lastAlert || 0) > 60000) {
+      if (
+        run.offCount >= 3 &&
+        (!previouslyOff || Date.now() - (run.lastAlert || 0) > 30000)
+      ) {
         run.lastAlert = Date.now();
+        offPathSound();
+        navigator.vibrate?.([180, 100, 180]);
         status("You appear to be off your planned route. Check the map.", true);
       }
       checkpoint();
@@ -810,11 +935,13 @@ function pauseRun() {
   run.seconds = elapsed();
   run.paused = true;
   run.last = null;
+  run.distanceAnchor = null;
   clearWatch();
   checkpoint();
   updateRun();
 }
 $("start-run").onclick = () => {
+  primeAlertAudio();
   if (!navigator.geolocation || !currentRoute() || run) return;
   run = {
     name: $("route-name").value.trim() || "Outdoor run",
@@ -842,6 +969,7 @@ $("pause-run").onclick = () => {
   if (!run.paused) pauseRun();
   else {
     if (document.hidden) return;
+    primeAlertAudio();
     run.paused = false;
     run.segmentStart = Date.now();
     run.last = null;
