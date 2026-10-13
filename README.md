@@ -2,7 +2,7 @@
 
 A mobile-friendly running app for planning routes, recording foreground GPS runs, and reviewing workouts week by week.
 
-**[Live demo](https://iquarter11.github.io/trail-runner/)** · [Web source](web/dist/) · [Tests](web/tests/)
+**[Live demo](https://iquarter11.github.io/trail-runner/)** · [40-second demo video](https://iquarter11.github.io/trail-runner/demo/trail-runner-demo.mp4) · [Web source](web/dist/) · [Tests](web/tests/)
 
 ![Trail Runner route planner](images/route-planner.jpg)
 
