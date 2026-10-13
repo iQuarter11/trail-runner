@@ -1,4 +1,4 @@
-import { locatePosition, locationErrorMessage } from "./location.js";
+import { locatePosition, locationErrorMessage } from "./location.js?v=location-fix-4";
 import {
   miles,
   distance,
@@ -10,7 +10,7 @@ import {
   loadData,
   saveData,
   walkingRoute,
-} from "./core.js";
+} from "./core.js?v=location-fix-4";
 const $ = (id) => document.getElementById(id);
 let data = { routes: [], workouts: [] },
   storageOK = true,
@@ -754,6 +754,6 @@ draw();
 renderRoutes();
 renderWorkouts();
 if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js").catch(() => {
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(() => {
     /* online app works without an offline shell */
   });
