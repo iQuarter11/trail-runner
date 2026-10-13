@@ -1,4 +1,12 @@
-import { locatePosition, locationErrorMessage } from "./location.js?v=location-fix-4";
+import {
+  routeProgress,
+  nextDirection,
+  directionSymbol,
+} from "./navigation.js?v=run-view-5";
+import {
+  locatePosition,
+  locationErrorMessage,
+} from "./location.js?v=run-view-5";
 import {
   miles,
   distance,
@@ -10,7 +18,7 @@ import {
   loadData,
   saveData,
   walkingRoute,
-} from "./core.js?v=location-fix-4";
+} from "./core.js?v=run-view-5";
 const $ = (id) => document.getElementById(id);
 let data = { routes: [], workouts: [] },
   storageOK = true,
@@ -28,6 +36,7 @@ let data = { routes: [], workouts: [] },
   locationMarker,
   tileErrors = 0;
 function status(message, error = false) {
+  if (error && !$("navigation").hidden) $("nav-gps").textContent = message;
   $("status").textContent = message;
   $("status").hidden = !message;
   $("status").className = error ? "error" : "";
@@ -191,6 +200,7 @@ function draw() {
   $("preview").disabled = points.length < 2 || !!controller || !!run;
   $("save-route").disabled =
     !route || !$("route-name").value.trim() || !storageOK || !!run;
+  $("preview-navigation").disabled = !route;
   $("start-run").disabled =
     !route || !!run || !storageOK || !navigator.geolocation;
   $("route-mode").disabled = !!run;
@@ -346,26 +356,51 @@ function renderRoutes() {
 }
 $("locate").onclick = async () => {
   const button = $("locate");
-  button.disabled = true; button.textContent = "Locating…";
+  button.disabled = true;
+  button.textContent = "Locating…";
   $("location-help").hidden = true;
-  status("Finding your location. Allow the browser's location prompt if it appears.");
+  status(
+    "Finding your location. Allow the browser's location prompt if it appears.",
+  );
   try {
-    const position = await locatePosition(navigator.geolocation, window.isSecureContext);
+    const position = await locatePosition(
+      navigator.geolocation,
+      window.isSecureContext,
+    );
     const p = [position.coords.latitude, position.coords.longitude];
     map?.setView(p, position.coords.accuracy > 500 ? 12 : 15);
     if (map) {
       locationMarker?.remove();
-      locationMarker = L.circleMarker(p, { radius: 7, color: "#fff", weight: 3, fillColor: "#347bb6", fillOpacity: 1 }).addTo(map);
+      locationMarker = L.circleMarker(p, {
+        radius: 7,
+        color: "#fff",
+        weight: 3,
+        fillColor: "#347bb6",
+        fillOpacity: 1,
+      }).addTo(map);
     }
-    status(`Location found (approximately ±${Math.round(position.coords.accuracy)} m). Tap the map to plan your route.`);
+    status(
+      `Location found (approximately ±${Math.round(position.coords.accuracy)} m). Tap the map to plan your route.`,
+    );
   } catch (error) {
     status(locationErrorMessage(error), true);
     $("location-help").hidden = false;
-  } finally { button.disabled = false; button.textContent = "◎ Find me"; }
+  } finally {
+    button.disabled = false;
+    button.textContent = "◎ Find me";
+  }
 };
 $("copy-app-link").onclick = async () => {
-  try { await navigator.clipboard.writeText("https://iquarter11.github.io/trail-runner/"); status("Link copied. Paste it into Safari or Chrome, then tap Find me."); }
-  catch { status("Open this address in Safari or Chrome: https://iquarter11.github.io/trail-runner/"); }
+  try {
+    await navigator.clipboard.writeText(
+      "https://iquarter11.github.io/trail-runner/",
+    );
+    status("Link copied. Paste it into Safari or Chrome, then tap Find me.");
+  } catch {
+    status(
+      "Open this address in Safari or Chrome: https://iquarter11.github.io/trail-runner/",
+    );
+  }
 };
 $("settings-open").onclick = () => {
   $("mapbox-token").value = token;
@@ -558,6 +593,134 @@ function clearWatch() {
   if (watch !== null) navigator.geolocation.clearWatch(watch);
   watch = null;
 }
+let navigationMap,
+  navigationRoute,
+  navigationTrack,
+  navigationPosition,
+  displayedRoute,
+  previewRoute,
+  followPosition = true;
+function openNavigation(route) {
+  previewRoute = route;
+  $("navigation").hidden = false;
+  document.querySelector("main").inert = true;
+  document.querySelector("header").inert = true;
+  $("exit-navigation").focus();
+  if (!navigationMap && window.L) {
+    navigationMap = L.map("navigation-map", { zoomControl: true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://routing.openstreetmap.de/about.html">FOSSGIS / OSRM</a>',
+    }).addTo(navigationMap);
+    navigationMap.on("dragstart", () => {
+      followPosition = false;
+      $("nav-recenter").textContent = "◎ Follow me";
+    });
+  }
+  requestAnimationFrame(() => {
+    navigationMap?.invalidateSize();
+    if (navigationMap && displayedRoute !== route) {
+      navigationRoute?.remove();
+      navigationTrack?.remove();
+      navigationPosition?.remove();
+      navigationPosition = null;
+      navigationRoute = L.polyline(
+        route.points.map((p) => [p[1], p[0]]),
+        { color: "#17694b", weight: 7 },
+      ).addTo(navigationMap);
+      navigationTrack = L.polyline([], { color: "#d37d3e", weight: 4 }).addTo(
+        navigationMap,
+      );
+      navigationMap.fitBounds(navigationRoute.getBounds(), {
+        padding: [35, 35],
+      });
+      displayedRoute = route;
+    }
+    renderNavigation();
+  });
+}
+function renderNavigation() {
+  const route = run?.route || previewRoute;
+  if (!route || $("navigation").hidden) return;
+  $("nav-name").textContent =
+    run?.name || $("route-name").value.trim() || "Route preview";
+  $("nav-state").textContent = !run
+    ? "PREVIEW"
+    : run.paused
+      ? "PAUSED"
+      : "RECORDING";
+  $("nav-start").hidden = !!run;
+  $("nav-pause").hidden = !run;
+  $("nav-finish").hidden = !run;
+  $("nav-pause").textContent = run?.paused ? "Resume" : "Pause";
+  const step = nextDirection(
+    route,
+    run?.progress || 0,
+    run?.geometryLength || route.distance,
+  );
+  $("nav-arrow").textContent = run?.offCount >= 3 ? "!" : directionSymbol(step);
+  $("nav-instruction").textContent =
+    run?.offCount >= 3 ? "Return to your planned route" : step.instruction;
+  $("nav-turn-distance").textContent = !run?.position
+    ? "Route preview · waiting for GPS"
+    : step.remaining === null
+      ? "Manual route"
+      : step.remaining < 25
+        ? "Coming up now"
+        : `In ${step.remaining >= 1609 ? (step.remaining / 1609.344).toFixed(1) + " mi" : Math.round(step.remaining / 0.3048) + " ft"}`;
+  $("nav-distance").textContent = miles(run?.distance || 0);
+  const seconds = Math.floor(elapsed());
+  $("nav-time").textContent =
+    `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  $("nav-pace").textContent = pace(run?.distance || 0, seconds);
+  if (!run)
+    $("nav-gps").textContent =
+      "Preview only. Start recording to use your live location.";
+  else if (run.position)
+    $("nav-gps").textContent = run.paused
+      ? "Run paused."
+      : $("run-guidance").textContent;
+  if (navigationTrack && run)
+    navigationTrack.setLatLngs(run.points.map((p) => [p[1], p[0]]));
+}
+function updateNavigationPosition(position) {
+  if (!navigationMap) return;
+  const point = [position[1], position[0]];
+  if (!navigationPosition)
+    navigationPosition = L.circleMarker(point, {
+      radius: 9,
+      color: "white",
+      weight: 3,
+      fillColor: "#347bb6",
+      fillOpacity: 1,
+    }).addTo(navigationMap);
+  else navigationPosition.setLatLng(point);
+  if (followPosition) navigationMap.setView(point, 17, { animate: true });
+}
+$("preview-navigation").onclick = () => {
+  const route = currentRoute();
+  if (route) openNavigation(run?.route || route);
+};
+$("nav-start").onclick = () => $("start-run").click();
+$("nav-pause").onclick = () => $("pause-run").click();
+$("nav-finish").onclick = () => $("finish-run").click();
+$("exit-navigation").onclick = () => {
+  $("navigation").hidden = true;
+  document.querySelector("main").inert = false;
+  document.querySelector("header").inert = false;
+  if (run)
+    status("Run still active. Reopen the run view using Preview run view.");
+};
+$("nav-recenter").onclick = () => {
+  followPosition = true;
+  if (run?.position) updateNavigationPosition(run.position);
+  else
+    status(
+      "Waiting for a usable GPS fix. Allow location access to follow your position.",
+      true,
+    );
+};
 function watchRun() {
   watch = navigator.geolocation.watchPosition(
     (position) => {
@@ -583,6 +746,11 @@ function watchRun() {
         run.distance += segment;
       }
       run.last = { point: p, stamp };
+      run.position = p;
+      const matched = routeProgress(p, run.route.points, run.progress || 0);
+      run.progress = matched.progress;
+      run.geometryLength = matched.length;
+      updateNavigationPosition(p);
       run.points.push(p);
       runLayer?.clearLayers();
       if (map) {
@@ -615,10 +783,7 @@ function watchRun() {
     (error) => {
       if (!run) return;
       pauseRun();
-      status(
-        `${locationErrorMessage(error)} Your run is paused.`,
-        true,
-      );
+      status(`${locationErrorMessage(error)} Your run is paused.`, true);
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
   );
@@ -638,6 +803,7 @@ function updateRun() {
     ? "PAUSED · RESUME WHEN READY"
     : "RECORDING · KEEP THIS PAGE OPEN";
   $("pause-run").textContent = run.paused ? "Resume" : "Pause";
+  renderNavigation();
 }
 function pauseRun() {
   if (!run || run.paused) return;
@@ -664,11 +830,12 @@ $("start-run").onclick = () => {
   draw();
   updateRun();
   checkpoint();
+  followPosition = true;
+  openNavigation(run.route);
   watchRun();
   status(
     "Recording starts with a good GPS fix. Keep this page visible and your phone unlocked.",
   );
-  $("run-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
 };
 $("pause-run").onclick = () => {
   if (!run) return;
@@ -702,6 +869,9 @@ $("finish-run").onclick = () => {
     /* saved workout remains durable */
   }
   run = null;
+  $("navigation").hidden = true;
+  document.querySelector("main").inert = false;
+  document.querySelector("header").inert = false;
   runLayer?.clearLayers();
   updateRun();
   draw();
@@ -740,6 +910,7 @@ try {
     $("route-mode").value = active.route.mode;
     $("route-name").value = active.name;
     updateRun();
+    openNavigation(run.route);
     status("Recovered your unfinished run. It is paused; resume or finish it.");
     if (map && active.points.length)
       L.polyline(
@@ -754,6 +925,8 @@ draw();
 renderRoutes();
 renderWorkouts();
 if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(() => {
-    /* online app works without an offline shell */
-  });
+  navigator.serviceWorker
+    .register("./sw.js", { updateViaCache: "none" })
+    .catch(() => {
+      /* online app works without an offline shell */
+    });

@@ -91,7 +91,9 @@ export async function walkingRoute(points, token = "", signal) {
   const response = await fetch(url, { signal });
   const data = await response.json();
   if (data.code === "NoSegment" || data.code === "NoRoute")
-    throw new Error("No walking route found. Place each point within 100 m of a mapped path, then retry.");
+    throw new Error(
+      "No walking route found. Place each point within 100 m of a mapped path, then retry.",
+    );
   if (!response.ok)
     throw new Error(
       `Walking routing unavailable (${response.status}). Try again shortly; no straight-line route was substituted.`,
@@ -102,6 +104,24 @@ export async function walkingRoute(points, token = "", signal) {
       "No walking route found. Place each point within 100 m of a mapped path, then retry.",
     );
   return {
+    maneuvers: (() => {
+      let offset = 0;
+      return route.legs.flatMap((leg) =>
+        leg.steps.map((step) => {
+          const result = {
+            instruction:
+              step.maneuver.instruction ||
+              `${step.maneuver.type === "depart" ? "Start" : step.maneuver.type === "arrive" ? "Arrive at your destination" : step.maneuver.type === "turn" ? "Turn" : "Continue"}${step.maneuver.modifier ? " " + step.maneuver.modifier : ""}${step.name ? " on " + step.name : ""}`,
+            modifier: step.maneuver.modifier || "",
+            type: step.maneuver.type,
+            location: step.maneuver.location,
+            offset,
+          };
+          offset += step.distance || 0;
+          return result;
+        }),
+      );
+    })(),
     points: route.geometry.coordinates,
     snapped: data.waypoints?.map((point) => point.location),
     distance: route.distance,

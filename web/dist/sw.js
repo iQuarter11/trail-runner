@@ -1,16 +1,21 @@
-const CACHE = "trail-runner-v4";
+const CACHE = "trail-runner-v5";
 const SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=location-fix-4",
-  "./app.js?v=location-fix-4",
-  "./core.js?v=location-fix-4",
-  "./location.js?v=location-fix-4",
+  "./style.css?v=run-view-5",
+  "./app.js?v=run-view-5",
+  "./core.js?v=run-view-5",
+  "./location.js?v=run-view-5",
+  "./navigation.js?v=run-view-5",
   "./icon.svg",
   "./manifest.webmanifest",
 ];
 self.addEventListener("install", (event) =>
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL).then(() => self.skipWaiting()))),
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(SHELL).then(() => self.skipWaiting())),
+  ),
 );
 self.addEventListener("activate", (event) =>
   event.waitUntil(
@@ -18,7 +23,9 @@ self.addEventListener("activate", (event) =>
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key.startsWith("trail-runner-") && key !== CACHE).map((key) => caches.delete(key)),
+          keys
+            .filter((key) => key.startsWith("trail-runner-") && key !== CACHE)
+            .map((key) => caches.delete(key)),
         ),
       ),
   ),

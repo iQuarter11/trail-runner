@@ -19,12 +19,12 @@
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
-    <link rel="stylesheet" href="style.css?v=location-fix-4" />
+    <link rel="stylesheet" href="style.css?v=run-view-5" />
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       defer
     ></script>
-    <script type="module" src="app.js?v=location-fix-4"></script>
+    <script type="module" src="app.js?v=run-view-5"></script>
   </head>
   <body>
     <header>
@@ -56,14 +56,44 @@
         </button>
       </nav>
       <p id="status" role="status" aria-live="polite" hidden></p>
-      <aside id="location-help" hidden style="margin-bottom:20px;border:1px solid var(--border);border-radius:12px;background:#fff">
-      <h2>Help with location</h2>
-      <p class="muted">If this app is inside Codex or another app's browser, open it directly in Safari or Chrome and allow location when asked.</p>
-      <ul class="muted"><li>iPhone: Settings → Privacy &amp; Security → Location Services. Enable location for Safari Websites or your browser.</li><li>Mac: System Settings → Privacy &amp; Security → Location Services. Enable your browser.</li><li>Check this website's Location permission in your browser settings, then retry Find me.</li></ul>
-      <button id="copy-app-link" class="ghost">Copy link for Safari / Chrome</button>
-      <p class="note">You can still pan the map and plan routes without sharing your location.</p>
-    </aside>
-    <section id="plan" class="view">
+      <aside
+        id="location-help"
+        hidden
+        style="
+          margin-bottom: 20px;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: #fff;
+        "
+      >
+        <h2>Help with location</h2>
+        <p class="muted">
+          If this app is inside Codex or another app's browser, open it directly
+          in Safari or Chrome and allow location when asked.
+        </p>
+        <ul class="muted">
+          <li>
+            iPhone: Settings → Privacy &amp; Security → Location Services.
+            Enable location for Safari Websites or your browser.
+          </li>
+          <li>
+            Mac: System Settings → Privacy &amp; Security → Location Services.
+            Enable your browser.
+          </li>
+          <li>
+            Check this website's Location permission in your browser settings,
+            then retry Find me.
+          </li>
+        </ul>
+        <button id="copy-app-link" class="ghost">
+          Copy link for Safari / Chrome
+        </button>
+        <p class="note">
+          You can still pan the map and plan routes without sharing your
+          location.
+        </p>
+      </aside>
+      <section id="plan" class="view">
         <div class="planner">
           <div class="map-wrap">
             <div id="map" aria-label="Route map"></div>
@@ -112,6 +142,9 @@
               Save this route ↗</button
             ><button id="start-run" class="ghost" disabled>
               Start a run on this route
+            </button>
+            <button id="preview-navigation" class="ghost" disabled>
+              Preview run view
             </button>
             <details id="directions">
               <summary>Walking directions</summary>
@@ -196,7 +229,7 @@
         <div id="workout-list" class="cards"></div>
       </section>
       <footer>
-        <span>TRAIL RUNNER · v4</span>
+        <span>TRAIL RUNNER · v5</span>
         <p>
           Your routes and workouts stay in this browser. Export a backup before
           clearing browser data.
@@ -204,6 +237,40 @@
         <button id="export" class="ghost">Export backup ↓</button>
       </footer>
     </main>
+    <section id="navigation" hidden aria-label="Running navigation">
+      <div class="nav-top">
+        <button id="exit-navigation" class="ghost">← Planner</button
+        ><span id="nav-name">Your run</span
+        ><span class="nav-badge" id="nav-state">PREVIEW</span>
+      </div>
+      <div class="turn-banner" aria-live="polite">
+        <span id="nav-arrow">↑</span>
+        <div>
+          <strong id="nav-turn-distance">Route preview</strong>
+          <h2 id="nav-instruction">Follow your route</h2>
+        </div>
+      </div>
+      <div id="navigation-map" aria-label="Live running map"></div>
+      <button id="nav-recenter" class="nav-recenter">◎ Follow me</button>
+      <div class="nav-bottom">
+        <p id="nav-gps" role="status">
+          Allow location when you start recording.
+        </p>
+        <div class="nav-stats">
+          <div><strong id="nav-distance">0.00</strong><span>MILES</span></div>
+          <div><strong id="nav-time">0:00</strong><span>TIME</span></div>
+          <div><strong id="nav-pace">—</strong><span>AVG PACE / MI</span></div>
+        </div>
+        <div class="row">
+          <button id="nav-start" class="primary">Start recording</button
+          ><button id="nav-pause" class="ghost" hidden>Pause</button
+          ><button id="nav-finish" class="primary" hidden>
+            Finish &amp; save
+          </button>
+        </div>
+        <p class="note">Keep this page visible and your phone unlocked.</p>
+      </div>
+    </section>
     <dialog id="settings">
       <form id="settings-form">
         <div class="dialog-title">
