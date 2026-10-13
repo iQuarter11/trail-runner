@@ -8,11 +8,11 @@ A mobile-friendly running app for planning routes, recording foreground GPS runs
 
 ## Try the demo
 
-1. Tap two or more points on the map. The default trace mode works without an account or API token.
+1. Tap two or more points on the map. The default mapped-path mode snaps your route automatically without an account or API token.
 2. Name and save your route, then reopen it from **Saved routes**.
 3. Open **Workout log** and log a run to see weekly mileage and pace.
 
-GPS permission is only requested when you choose **Find me** or start a run. No sample routes or workouts are stored on a server.
+GPS permission is only requested when you choose **Find me** or start a run. Routes and workouts are stored locally; routing waypoints are sent to the selected routing provider.
 
 The active implementation is in **web/**. The earlier Expo native scaffold remains at the repository root as a reference.
 
@@ -20,12 +20,12 @@ The active implementation is in **web/**. The earlier Expo native scaffold remai
 
 Open https://iQuarter11.github.io/trail-runner/. No ChatGPT account or login is required. Open it in Safari on your iPhone, then choose **Share → Add to Home Screen**. No Apple Developer membership or App Store install is needed.
 
-The map, traced routes, manual workout log, and weekly summaries work without a Mapbox account. For walking routes that snap to mapped roads and trails, open Settings and enter a **public** Mapbox token (`pk.…`). Mapbox usage is subject to its account limits and billing. Never use a secret token (`sk.…`).
+The map, mapped walking routes, workout log, and weekly summaries work without an account. Walking routing uses the public FOSSGIS / OSRM foot service. Optionally enter a **public** Mapbox token (`pk.…`) in Settings to use Mapbox instead. Mapbox usage is subject to its account limits and billing. Never use a secret token (`sk.…`).
 
 ## Features
 
 - Pan/zoom an OpenStreetMap map and tap 2–25 shaping points.
-- Trace routes directly, with measured straight-segment mileage, or request a Mapbox walking route.
+- Follow mapped pedestrian paths automatically between shaping points, using FOSSGIS / OSRM or optional Mapbox. Manual straight-line trace remains available explicitly.
 - Save, view, and delete named routes in browser storage.
 - Record GPS runs while the app stays visible; pause, resume, finish, and recover an unfinished run after reload.
 - Show GPS accuracy, cumulative distance, average pace, and a visual off-route warning after three accepted fixes more than 60 m from the planned line.
@@ -37,7 +37,7 @@ The map, traced routes, manual workout log, and weekly summaries work without a 
 
 - **Keep your phone unlocked and this app visible during GPS recording.** It pauses when the page is hidden. A browser cannot guarantee tracking under suspension; reload recovers the latest checkpoint as paused.
 - Routes and workouts are local to the browser and device. They do not sync and can be lost if browser data is cleared. Export periodically. Backup import is not implemented yet.
-- Trace mode joins points directly; it does not snap to paths. Place points along the actual route. Automatic walking routing needs a Mapbox token and internet.
+- Trace mode joins points directly; it does not snap to paths. Place points along the actual route. Walking routing needs internet and depends on mapped connectivity and access tags. It can include roads, and cannot guarantee an exact or exclusively trail route. Waypoints snap within 100 m; missing paths or service failures produce an error rather than a straight-line fallback.
 - Maps need internet. The service worker caches the local shell, not third-party map tiles, Leaflet, or map routes. Offline mapping is not implemented.
 - Route elevation preview, automatically measured run elevation, and live spoken turn prompts are not implemented. Walking directions are listed for review; off-route alerts are visual while active.
 - GPS filtering skips poor accuracy (>40 m), large time gaps (>30 seconds), and implausible jumps (>10 m/s). Outdoor phone testing is still required; pace is average pace, not instantaneous pace.
@@ -59,11 +59,11 @@ npm run check
 npm test
 ```
 
-The four Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
+The six Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
 
 ## Technical decisions
 
-The active web app uses plain JavaScript modules, HTML/CSS, and Leaflet. It needs no package installation or framework build. OpenStreetMap supplies map tiles; Mapbox walking directions are an optional integration.
+The active web app uses plain JavaScript modules, HTML/CSS, and Leaflet. It needs no package installation or framework build. OpenStreetMap supplies map tiles; FOSSGIS / OSRM foot routing is the default; Mapbox walking directions are an optional integration.
 
 - **Local-first storage:** routes and workouts stay in the visitor's browser. Writes update the UI only after storage succeeds, and JSON export provides a backup.
 - **Geospatial calculations:** haversine distance measures mileage; point-to-segment distance compares GPS fixes with the planned route. Repeated off-route fixes help reduce false warnings.
@@ -86,12 +86,13 @@ After editing the web source, run `npm run prepare-pages` from `web/`, commit bo
 - `web/dist/sw.js`: local shell cache.
 - `web/tests/core.test.mjs`: calculation and failure tests.
 
-OpenStreetMap attribution is visible on the map. Standard tiles are used on demand with browser caching; no bulk downloads or offline tile prefetching. For larger usage, choose a suitable tile provider.
+OpenStreetMap attribution is visible on the map. FOSSGIS routing attribution and a Fix the map link are shown in the planner. The public walking service is limited to one request per second, with no heavy usage; requests are debounced and throttled. Use a dedicated routing provider for larger deployments. Standard tiles are used on demand with browser caching; no bulk downloads or offline tile prefetching. For larger usage, choose a suitable tile provider.
 
 The earlier native Expo dependencies have 29 audit findings documented in the previous milestone. The dependency-free web application does not bundle those native packages; they remain relevant if resuming native development.
 
 ## Official references
 
+- [FOSSGIS walking routing](https://routing.openstreetmap.de/about.html)
 - [Leaflet](https://leafletjs.com/reference.html)
 - [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [Mapbox walking Directions API](https://docs.mapbox.com/api/navigation/directions/)

@@ -17,6 +17,7 @@ let data = { routes: [], workouts: [] },
   points = [],
   preview = null,
   controller = null,
+  routeTimer = null,
   week = new Date(),
   run = null,
   watch = null,
@@ -134,6 +135,7 @@ if (window.L) {
   status("Map library could not load. Check your connection and reload.", true);
 }
 function cancelRequest() {
+  clearTimeout(routeTimer);
   controller?.abort();
   controller = null;
   $("preview").textContent = "Find walking route →";
@@ -144,6 +146,8 @@ function edit(next) {
   preview = null;
   if (storageOK) status("");
   draw();
+  if (points.length >= 2 && $("route-mode").value === "walking")
+    routeTimer = setTimeout(generateRoute, 1200);
 }
 function currentRoute() {
   return (
@@ -162,11 +166,12 @@ function draw() {
   const route = currentRoute();
   layer?.clearLayers();
   if (map && points.length) {
-    L.polyline(
-      (route?.points || points).map((p) => [p[1], p[0]]),
-      { color: "#17694b", weight: 5, dashArray: route ? undefined : "8 8" },
-    ).addTo(layer);
-    points.forEach((p, i) =>
+    if (route || $("route-mode").value === "trace")
+      L.polyline(
+        (route?.points || points).map((p) => [p[1], p[0]]),
+        { color: "#17694b", weight: 5, dashArray: route ? undefined : "8 8" },
+      ).addTo(layer);
+    (preview?.snapped || points).forEach((p, i) =>
       L.marker([p[1], p[0]], {
         icon: L.divIcon({
           className: "point-icon",
@@ -192,8 +197,8 @@ function draw() {
     $("route-mode").value === "trace"
       ? "Trace mode connects your points directly. Add points along the path to measure it."
       : preview
-        ? "Walking route follows Mapbox’s mapped network. Review it before heading out."
-        : "Add 2–25 points, then find a walking route. Requires a public Mapbox token in Settings.";
+        ? `Route follows mapped paths via ${preview.provider || "walking routing"}. Points snap within 100 m. Review the chosen paths.`
+        : "Add 2–25 points near paths. Your route follows the mapped pedestrian network automatically; roads may be included.";
   $("directions").hidden = !route?.steps.length;
   $("steps").replaceChildren(
     ...(route?.steps || []).map((step) => element("li", step)),
@@ -207,11 +212,7 @@ $("clear").onclick = () => {
 };
 $("route-name").oninput = draw;
 $("route-mode").onchange = () => edit(points);
-$("preview").onclick = async () => {
-  if (!token) {
-    $("settings").showModal();
-    return;
-  }
+async function generateRoute() {
   cancelRequest();
   const request = new AbortController();
   controller = request;
@@ -239,7 +240,8 @@ $("preview").onclick = async () => {
       draw();
     }
   }
-};
+}
+$("preview").onclick = generateRoute;
 $("save-route").onclick = () => {
   const route = currentRoute(),
     name = $("route-name").value.trim();
@@ -388,8 +390,8 @@ $("settings-form").onsubmit = (event) => {
     $("settings").close();
     status(
       next
-        ? "Mapbox connected. Select “Follow roads & trails” to snap your route."
-        : "Token removed. Traced routes still work.",
+        ? "Mapbox connected. Mapped-path routing will use your token."
+        : "Token removed. Mapped-path routing will use the public walking service.",
     );
   } catch {
     alert("Could not store settings. Check browser storage permissions.");

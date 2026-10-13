@@ -138,3 +138,78 @@ test("walking directions use the walking profile and reject unavailable routes",
     globalThis.fetch = original;
   }
 });
+
+test("default walking service returns full path geometry without a token", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url) => {
+      assert.match(
+        url,
+        /routing.openstreetmap.de\/routed-foot\/route\/v1\/foot/,
+      );
+      assert.match(url, /overview=full/);
+      assert.match(url, /radiuses=100;100/);
+      return {
+        ok: true,
+        json: async () => ({
+          code: "Ok",
+          waypoints: [{ location: [0, 0] }, { location: [0.01, 0] }],
+          routes: [
+            {
+              distance: 2000,
+              geometry: {
+                coordinates: [
+                  [0, 0],
+                  [0.005, 0.005],
+                  [0.01, 0],
+                ],
+              },
+              legs: [
+                {
+                  steps: [
+                    {
+                      maneuver: { type: "turn", modifier: "left" },
+                      name: "Park path",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      };
+    };
+    const route = await walkingRoute([
+      [0, 0],
+      [0.01, 0],
+    ]);
+    assert.equal(route.points.length, 3);
+    assert.equal(route.distance, 2000);
+    assert.deepEqual(route.snapped, [
+      [0, 0],
+      [0.01, 0],
+    ]);
+    assert.equal(route.steps[0], "Turn left on Park path");
+    assert.equal(route.mode, "walking");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+test("walking failures never return a straight-line fallback", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ code: "NoSegment" }),
+    });
+    await assert.rejects(
+      walkingRoute([
+        [0, 0],
+        [0.01, 0],
+      ]),
+      /No walking route/,
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});

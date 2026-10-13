@@ -71,33 +71,56 @@ export function loadData(storage) {
 export function saveData(storage, data) {
   storage.setItem("trail-runner-data", JSON.stringify(data));
 }
-export async function walkingRoute(points, token, signal) {
-  if (!token.startsWith("pk."))
-    throw new Error(
-      "Add a public Mapbox token beginning with pk. in Settings.",
-    );
+let lastRoutingRequest = 0;
+export async function walkingRoute(points, token = "", signal) {
+  if (token && !token.startsWith("pk."))
+    throw new Error("Use a public Mapbox token beginning with pk.");
   if (points.length < 2 || points.length > 25)
     throw new Error("Choose 2–25 points.");
-  const response = await fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/walking/${points.map((p) => p.join(",")).join(";")}?geometries=geojson&overview=full&steps=true&access_token=${encodeURIComponent(token)}`,
-    { signal },
-  );
+  const coordinates = points.map((p) => p.join(",")).join(";");
+  const mapbox = !!token;
+  const url = mapbox
+    ? `https://api.mapbox.com/directions/v5/mapbox/walking/${coordinates}?geometries=geojson&overview=full&steps=true&radiuses=${points.map(() => 100).join(";")}&access_token=${encodeURIComponent(token)}`
+    : `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coordinates}?geometries=geojson&overview=full&steps=true&radiuses=${points.map(() => 100).join(";")}`;
+  if (!mapbox) {
+    const delay = Math.max(0, 1100 - (Date.now() - lastRoutingRequest));
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    signal?.throwIfAborted();
+    lastRoutingRequest = Date.now();
+  }
+  const response = await fetch(url, { signal });
+  const data = await response.json();
+  if (data.code === "NoSegment" || data.code === "NoRoute")
+    throw new Error("No walking route found. Place each point within 100 m of a mapped path, then retry.");
   if (!response.ok)
     throw new Error(
-      `Route request failed (${response.status}). Check your token and connection.`,
+      `Walking routing unavailable (${response.status}). Try again shortly; no straight-line route was substituted.`,
     );
-  const data = await response.json(),
-    route = data.routes?.[0];
+  const route = data.routes?.[0];
   if (data.code !== "Ok" || !route?.geometry?.coordinates?.length)
     throw new Error(
-      "No walking route found. Move points closer to mapped paths.",
+      "No walking route found. Place each point within 100 m of a mapped path, then retry.",
     );
   return {
     points: route.geometry.coordinates,
+    snapped: data.waypoints?.map((point) => point.location),
     distance: route.distance,
     mode: "walking",
+    provider: mapbox ? "Mapbox" : "FOSSGIS / OSRM",
     steps: route.legs.flatMap((leg) =>
-      leg.steps.map((step) => step.maneuver.instruction),
+      leg.steps.map((step) => {
+        if (step.maneuver.instruction) return step.maneuver.instruction;
+        const type = step.maneuver.type;
+        const action =
+          type === "depart"
+            ? "Start"
+            : type === "arrive"
+              ? "Arrive at your destination"
+              : type === "turn"
+                ? "Turn"
+                : "Continue";
+        return `${action}${step.maneuver.modifier ? " " + step.maneuver.modifier : ""}${step.name ? " on " + step.name : ""}`;
+      }),
     ),
   };
 }

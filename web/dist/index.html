@@ -70,14 +70,14 @@
             <p class="eyebrow">THE NEXT ADVENTURE</p>
             <h2>Make it your own.</h2>
             <p class="muted">
-              Tap the map to mark your start, shape your route, and choose your
-              finish.
+              Tap near paths to mark your start, shape your route, and choose
+              your finish.
             </p>
             <div class="mode">
               <label for="route-mode">Route style</label
               ><select id="route-mode">
-                <option value="trace">Trace it yourself</option>
-                <option value="walking">Follow roads & trails · Mapbox</option>
+                <option value="walking">Follow mapped paths</option>
+                <option value="trace">Manual straight-line trace</option>
               </select>
             </div>
             <div class="metric-row">
@@ -117,6 +117,22 @@
                 the outdoors.
               </p>
             </div>
+            <p class="note">
+              Routing:
+              <a
+                href="https://routing.openstreetmap.de/about.html"
+                target="_blank"
+                rel="noopener"
+                >FOSSGIS / OSRM</a
+              >
+              ·
+              <a
+                href="https://www.openstreetmap.org/fixthemap"
+                target="_blank"
+                rel="noopener"
+                >Fix the map</a
+              >
+            </p>
           </aside>
         </div>
         <div id="run-panel" hidden>
@@ -195,8 +211,8 @@
           </button>
         </div>
         <p>
-          The map and traced routes work without an account. To snap routes to
-          roads and trails, add a public Mapbox token.
+          Mapped-path routing uses the public FOSSGIS walking service by
+          default. You can optionally use your own Mapbox public token instead.
         </p>
         <label for="mapbox-token">Public Mapbox token</label
         ><input
@@ -206,8 +222,8 @@
           autocomplete="off"
         />
         <p class="note">
-          Stored only in this browser. Public tokens are visible to the routing
-          service; never use a secret token.
+          Stored only in this browser. Routing sends selected waypoints to
+          FOSSGIS or Mapbox. Never use a secret token.
         </p>
         <a href="https://account.mapbox.com/" target="_blank" rel="noopener"
           >Get a token at Mapbox ↗</a
