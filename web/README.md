@@ -59,7 +59,7 @@ npm run check
 npm test
 ```
 
-The six Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
+The ten Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
 
 ## Technical decisions
 
@@ -97,3 +97,7 @@ The earlier native Expo dependencies have 29 audit findings documented in the pr
 - [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [Mapbox walking Directions API](https://docs.mapbox.com/api/navigation/directions/)
 - [Browser geolocation](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition)
+
+## Location troubleshooting
+
+If Find me fails inside an in-app browser, open the public HTTPS link directly in Safari or Chrome. Allow location for this website and enable Location Services for your browser in device settings. The app distinguishes permission denial, timeout, and unavailable location. Map centering accepts an approximate fix before retrying precise location; GPS recording still requests accurate fixes. Device permission settings cannot be changed by the web app.

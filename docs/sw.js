@@ -1,10 +1,11 @@
-const CACHE = "trail-runner-v2";
+const CACHE = "trail-runner-v3";
 const SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./core.js",
+  "./location.js",
   "./icon.svg",
   "./manifest.webmanifest",
 ];

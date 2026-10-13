@@ -1,3 +1,4 @@
+import { locatePosition, locationErrorMessage } from "./location.js";
 import {
   miles,
   distance,
@@ -343,35 +344,28 @@ function renderRoutes() {
     $("route-list").append(card);
   }
 }
-$("locate").onclick = () => {
-  if (!navigator.geolocation)
-    return status("This browser does not support location.", true);
-  status("Finding your location…");
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const p = [position.coords.latitude, position.coords.longitude];
-      map?.setView(p, 15);
-      if (map) {
-        locationMarker?.remove();
-        locationMarker = L.circleMarker(p, {
-          radius: 7,
-          color: "#fff",
-          weight: 3,
-          fillColor: "#347bb6",
-          fillOpacity: 1,
-        }).addTo(map);
-      }
-      status("Location found. Tap the map to plan your route.");
-    },
-    (error) =>
-      status(
-        error.code === 1
-          ? "Location permission was denied. You can still pan the map and plan manually."
-          : "Location unavailable. Try again outdoors or plan manually.",
-        true,
-      ),
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-  );
+$("locate").onclick = async () => {
+  const button = $("locate");
+  button.disabled = true; button.textContent = "Locating…";
+  $("location-help").hidden = true;
+  status("Finding your location. Allow the browser's location prompt if it appears.");
+  try {
+    const position = await locatePosition(navigator.geolocation, window.isSecureContext);
+    const p = [position.coords.latitude, position.coords.longitude];
+    map?.setView(p, position.coords.accuracy > 500 ? 12 : 15);
+    if (map) {
+      locationMarker?.remove();
+      locationMarker = L.circleMarker(p, { radius: 7, color: "#fff", weight: 3, fillColor: "#347bb6", fillOpacity: 1 }).addTo(map);
+    }
+    status(`Location found (approximately ±${Math.round(position.coords.accuracy)} m). Tap the map to plan your route.`);
+  } catch (error) {
+    status(locationErrorMessage(error), true);
+    $("location-help").hidden = false;
+  } finally { button.disabled = false; button.textContent = "◎ Find me"; }
+};
+$("copy-app-link").onclick = async () => {
+  try { await navigator.clipboard.writeText("https://iquarter11.github.io/trail-runner/"); status("Link copied. Paste it into Safari or Chrome, then tap Find me."); }
+  catch { status("Open this address in Safari or Chrome: https://iquarter11.github.io/trail-runner/"); }
 };
 $("settings-open").onclick = () => {
   $("mapbox-token").value = token;
@@ -622,9 +616,7 @@ function watchRun() {
       if (!run) return;
       pauseRun();
       status(
-        error.code === 1
-          ? "GPS permission denied. Run paused. Allow location access to resume."
-          : "GPS unavailable. Run paused; resume when you have a signal.",
+        `${locationErrorMessage(error)} Your run is paused.`,
         true,
       );
     },
