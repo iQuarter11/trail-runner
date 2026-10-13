@@ -60,7 +60,7 @@ npm run check
 npm test
 ```
 
-The thirteen Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
+The fourteen Node tests cover distance/off-route geometry, weekly boundaries and weighted pace, browser-storage failure handling, and walking API behavior. Browser QA checks route persistence, workout totals, map rendering, and narrow screens. Actual GPS tracking needs outdoor device testing with location permission.
 
 ## Technical decisions
 

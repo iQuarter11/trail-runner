@@ -43,7 +43,7 @@ export function nextDirection(
     ? (progress * route.distance) / geometryLength
     : 0;
   const next = route.maneuvers?.find(
-    (step) => step.type !== "depart" && step.offset > along - 10,
+    (step) => step.type !== "depart" && (step.type !== "arrive" || step.offset >= route.distance - 15) && step.offset > along - 10,
   );
   if (next) return { ...next, remaining: Math.max(0, next.offset - along) };
   if (route.maneuvers?.length)

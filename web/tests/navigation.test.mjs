@@ -38,3 +38,8 @@ test("legacy and manual routes do not fabricate turn instructions", () => {
   assert.equal(nextDirection({ distance: 1000 }, 100, 1000).remaining, null);
   assert.match(nextDirection({ distance: 1000 }).instruction, /map/);
 });
+
+test("shaping points do not announce arrival at the final destination", () => {
+  const route = { distance: 1000, maneuvers: [{ type: "arrive", offset: 200, instruction: "Arrive" }, { type: "depart", offset: 200, instruction: "Start" }, { type: "turn", offset: 400, instruction: "Turn right" }, { type: "arrive", offset: 1000, instruction: "Arrive" }] };
+  assert.equal(nextDirection(route, 190, 1000).instruction, "Turn right");
+});
